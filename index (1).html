@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Luz y Agua Iguazú | Plataforma Cívica & Trazabilidad ESG</title>
+  <meta name="description" content="Sistema ciudadano de mapeo de vulnerabilidad eléctrica e hídrica, exigibilidad legal y trazabilidad ESG en Puerto Iguazú, Misiones." />
+  <meta name="theme-color" content="#0B1120" />
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              950: '#060A13',
+              900: '#0B1120',
+              850: '#10182B',
+              800: '#162038',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>window.L || document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');</script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+
+  <style>
+    body {
+      background-color: #060A13;
+      color: #F8FAFC;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    /* Estilos explícitos y garantizados para Leaflet */
+    /* Fix: el preflight de Tailwind (img{max-width:100%;height:auto}) desarma las teselas de Leaflet */
+    .leaflet-container img,
+    .leaflet-container svg { max-width: none !important; max-height: none !important; }
+    .leaflet-container .leaflet-tile { max-width: none !important; max-height: none !important; width: 256px; height: 256px; }
+    .leaflet-pane > svg, .leaflet-pane > canvas { max-width: none !important; }
+    .leaflet-container .leaflet-marker-pane img, .leaflet-container .leaflet-shadow-pane img { width: auto; height: auto; }
+    #map {
+      width: 100%;
+      height: 520px !important;
+      min-height: 450px !important;
+      background: #0B1120 !important;
+      z-index: 5;
+    }
+    .leaflet-container {
+      background: #0B1120 !important;
+      font-family: 'Inter', sans-serif !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: #10182B !important;
+      color: #F8FAFC !important;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 1rem !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6) !important;
+      padding: 0 !important;
+    }
+    .leaflet-popup-content {
+      margin: 0 !important;
+      width: 280px !important;
+    }
+    .leaflet-popup-tip {
+      background: #10182B !important;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .leaflet-control-attribution {
+      background: rgba(11, 17, 32, 0.8) !important;
+      color: #94A3B8 !important;
+      font-size: 10px !important;
+    }
+    .leaflet-control-attribution a {
+      color: #38BDF8 !important;
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      70% { transform: scale(1.65); opacity: 0; }
+      100% { transform: scale(1.65); opacity: 0; }
+    }
+    .marker-pulse {
+      animation: pulseRing 2s infinite ease-out;
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #dossierPrintArea, #dossierPrintArea * { visibility: visible; }
+      #dossierPrintArea {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 24px !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pb-20 md:pb-0 selection:bg-amber-500/30 selection:text-amber-200">
+
+  <!-- ===================================================================== -->
+  <!-- HEADER / BARRA SUPERIOR                                               -->
+  <!-- ===================================================================== -->
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-cyan-500 p-[1.5px] shadow-lg shadow-amber-500/10 shrink-0">
+          <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+            <i data-lucide="zap" class="w-5 h-5 text-amber-400"></i>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white leading-none">
+              Luz y Agua <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-cyan-400">Iguazú</span>
+            </h1>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+              PWA v2.6 • EN VIVO
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-0.5">Puerto Iguazú, Misiones • Gobernanza & ESG</p>
+        </div>
+      </div>
+
+      <!-- Navegación Desktop -->
+      <nav class="hidden md:flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800/80">
+        <button onclick="switchTab('mapa')" id="nav-desk-mapa" class="nav-desk-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all bg-slate-800 text-white shadow-sm">
+          <i data-lucide="map-pin" class="w-4 h-4 text-amber-400"></i>
+          Mapa en Vivo
+        </button>
+        <button onclick="switchTab('reportar')" id="nav-desk-reportar" class="nav-desk-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+          Reportar Falla (3 Toques)
+        </button>
+        <button onclick="switchTab('legal')" id="nav-desk-legal" class="nav-desk-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all">
+          <i data-lucide="scale" class="w-4 h-4 text-cyan-400"></i>
+          Expedientes & Legal
+        </button>
+        <button onclick="switchTab('inversores')" id="nav-desk-inversores" class="nav-desk-btn flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-all">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+          Inversores ESG & QR
+        </button>
+      </nav>
+
+      <div>
+        <button onclick="switchTab('reportar')" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all active:scale-95">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Nuevo Reporte</span>
+          <span class="sm:hidden">Denunciar</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- CONTENEDOR PRINCIPAL                                                  -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+
+    <!-- PESTAÑA 1: MAPA EN VIVO -->
+    <section id="tab-mapa" class="tab-section space-y-4">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h2 class="text-base sm:text-lg font-bold text-white">Semáforo Territorial de Puerto Iguazú</h2>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">Monitoreo georreferenciado de luminarias críticas, red hídrica y obras ESG ejecutadas.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <button onclick="filterMarkers('todos')" id="filter-todos" class="filter-btn px-3 py-2 rounded-xl text-xs font-semibold bg-white text-slate-950 transition-all">
+            Todos (<span id="count-todos">0</span>)
+          </button>
+          <button onclick="filterMarkers('luz')" id="filter-luz" class="filter-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-amber-300 border border-amber-500/30 hover:bg-slate-750 transition-all flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            Sin Luz (<span id="count-luz">0</span>)
+          </button>
+          <button onclick="filterMarkers('agua')" id="filter-agua" class="filter-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-cyan-300 border border-cyan-500/30 hover:bg-slate-750 transition-all flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            Falla Agua (<span id="count-agua">0</span>)
+          </button>
+          <button onclick="filterMarkers('solucionado')" id="filter-solucionado" class="filter-btn px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-emerald-300 border border-emerald-500/30 hover:bg-slate-750 transition-all flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            Obras ESG (<span id="count-solucionado">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Contenedor del mapa con altura garantizada -->
+        <div class="lg:col-span-8 relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
+          <div id="map"></div>
+
+          <div class="absolute bottom-3 left-3 z-20 bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 sm:p-3 shadow-xl max-w-[260px]">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Referencias del Semáforo</p>
+            <div class="space-y-1.5 text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-amber-500 ring-2 ring-amber-500/30 shrink-0"></span>
+                <span class="text-slate-200">Zona oscura / Luminaria quemada</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-cyan-500 ring-2 ring-cyan-500/30 shrink-0"></span>
+                <span class="text-slate-200">Corte de agua / Baja presión / Turbidez</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30 shrink-0"></span>
+                <span class="text-slate-200">LED Solar o Módulo Hídrico Activo (QR)</span>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="resetMapCenter()" title="Centrar en Puerto Iguazú" class="absolute top-3 right-3 z-20 p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg transition-all">
+            <i data-lucide="crosshair" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="lg:col-span-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col h-[520px]">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h3 class="text-sm font-bold text-white">Actividad Territorial</h3>
+              <p class="text-[11px] text-slate-400">Tocá un punto para ubicarlo en el mapa</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-1 rounded-lg bg-slate-800 text-slate-300" id="liveClockBadge">Iguazú • AR</span>
+          </div>
+
+          <div id="reportsFeedList" class="flex-1 overflow-y-auto space-y-2.5 pr-1 mt-3"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PESTAÑA 2: REPORTAR -->
+    <section id="tab-reportar" class="tab-section hidden max-w-2xl mx-auto">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 mb-6">
+          <div>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 mb-2">
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i> REPORTE CIUDADANO RÁPIDO
+            </span>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-white">Denunciar Falla en 3 Toques</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1">Tu reporte alimenta el mapa público y genera prueba documental para reclamos ante EMSA, IMAS y el Municipio.</p>
+          </div>
+        </div>
+
+        <form id="reportForm" onsubmit="submitCitizenReport(event)" class="space-y-6">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2.5">
+              1. Seleccioná el tipo de problema *
+            </label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button type="button" onclick="selectProblemType('luz', 'Sin Luz / Luminaria Apagada')" id="btn-type-luz" class="type-select-btn p-4 rounded-2xl border-2 border-amber-500 bg-amber-500/15 text-left transition-all flex sm:flex-col items-center sm:items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <i data-lucide="lightbulb-off" class="w-5 h-5 text-amber-400"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-white leading-tight">Sin Luz / Luminaria</p>
+                  <p class="text-[11px] text-amber-200/80 mt-0.5">Calle oscura o foco quemado</p>
+                </div>
+              </button>
+
+              <button type="button" onclick="selectProblemType('agua', 'Corte de Agua / Baja Presión')" id="btn-type-agua-corte" class="type-select-btn p-4 rounded-2xl border-2 border-slate-800 bg-slate-950/60 hover:border-slate-700 text-left transition-all flex sm:flex-col items-center sm:items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/15 flex items-center justify-center shrink-0">
+                  <i data-lucide="droplet-off" class="w-5 h-5 text-cyan-400"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-white leading-tight">Corte / Baja Presión</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Sin suministro en red o aldea</p>
+                </div>
+              </button>
+
+              <button type="button" onclick="selectProblemType('agua', 'Agua Turbia / Pérdida en Calle')" id="btn-type-agua-turbia" class="type-select-btn p-4 rounded-2xl border-2 border-slate-800 bg-slate-950/60 hover:border-slate-700 text-left transition-all flex sm:flex-col items-center sm:items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-sky-500/15 flex items-center justify-center shrink-0">
+                  <i data-lucide="waves" class="w-5 h-5 text-sky-400"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-white leading-tight">Agua Turbia / Fuga</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">No apta consumo o caño roto</p>
+                </div>
+              </button>
+            </div>
+            <input type="hidden" id="selectedCategory" value="luz" />
+            <input type="hidden" id="selectedSubType" value="Sin Luz / Luminaria Apagada" />
+          </div>
+
+          <div class="space-y-3">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-300">
+              2. Barrio y Geolocalización *
+            </label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <select id="barrioSelect" required class="w-full px-4 py-3.5 rounded-2xl bg-slate-950 border border-slate-700 text-white text-sm font-medium focus:outline-none focus:border-amber-400">
+                  <option value="Barrio Santa Rosa">Barrio Santa Rosa</option>
+                  <option value="Barrio Belén">Barrio Belén</option>
+                  <option value="Barrio 25 de Mayo">Barrio 25 de Mayo</option>
+                  <option value="Barrio Libertad">Barrio Libertad</option>
+                  <option value="Aldea Mbya Guaraní (Fortín Mbororé / Yryapú)">Aldea Mbya Guaraní (Fortín Mbororé / Yryapú)</option>
+                  <option value="Barrio Las Orquídeas">Barrio Las Orquídeas</option>
+                  <option value="Barrio Hermoso">Barrio Hermoso</option>
+                  <option value="Barrio Villa Nueva">Barrio Villa Nueva</option>
+                  <option value="Barrio Primero de Mayo">Barrio Primero de Mayo</option>
+                  <option value="Barrio Bicentenario">Barrio Bicentenario</option>
+                  <option value="Barrio Almirante Brown">Barrio Almirante Brown</option>
+                </select>
+              </div>
+
+              <button type="button" onclick="getUserGPS()" id="gpsBtn" class="w-full px-4 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-cyan-500/40 text-cyan-300 font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-98">
+                <i data-lucide="locate-fixed" class="w-4 h-4"></i>
+                <span id="gpsBtnText">Usar mi ubicación GPS actual</span>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-950/90 border border-slate-800/80 text-xs">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <i data-lucide="navigation" class="w-3.5 h-3.5 text-emerald-400"></i>
+                Coordenadas vinculadas:
+              </span>
+              <span id="coordsDisplay" class="font-mono text-emerald-300 font-semibold">-25.6052, -54.5681 (Iguazú)</span>
+            </div>
+            <input type="hidden" id="latInput" value="-25.6052" />
+            <input type="hidden" id="lngInput" value="-54.5681" />
+          </div>
+
+          <div class="space-y-3">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-300">
+              3. Evidencia Fotográfica y Referencia (Opcional)
+            </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+              <label class="cursor-pointer flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-dashed border-slate-700 hover:border-amber-400/60 bg-slate-950/50 transition-all text-center min-h-[110px]">
+                <i data-lucide="camera" class="w-6 h-6 text-slate-400 mb-1.5"></i>
+                <span class="text-xs font-semibold text-slate-200">Adjuntar Foto del Punto</span>
+                <span class="text-[10px] text-slate-500 mt-0.5">Cámara o galería (PWA liviana)</span>
+                <input type="file" accept="image/*" capture="environment" onchange="previewReportPhoto(event)" class="hidden" />
+              </label>
+
+              <div id="photoPreviewContainer" class="hidden relative rounded-2xl overflow-hidden border border-slate-700 h-[110px] bg-slate-950">
+                <img id="photoPreviewImg" src="" alt="Vista previa de evidencia" class="w-full h-full object-cover" />
+                <button type="button" onclick="clearPhotoPreview()" class="absolute top-1.5 right-1.5 p-1 rounded-lg bg-slate-950/80 text-rose-400 hover:text-rose-300">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+
+              <div id="photoPlaceholderBox" class="flex flex-col justify-center p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 h-[110px]">
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                  <strong class="text-slate-200">Modo Offline Activo:</strong> Si no tenés señal de datos en el barrio, el reporte se guarda localmente y sincroniza al detectar Wi-Fi.
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="sm:col-span-2">
+                <input type="text" id="descInput" required placeholder="Ej: Esquina parada colectivo sin luz hace 3 semanas..." class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-700 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-amber-400" />
+              </div>
+              <div>
+                <input type="number" id="affectedInput" min="1" max="500" value="25" placeholder="Familias afect." title="Familias estimadas afectadas" class="w-full px-4 py-3 rounded-2xl bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-400" />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-cyan-500 hover:brightness-110 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 active:scale-99">
+            <i data-lucide="send" class="w-5 h-5"></i>
+            Enviar Denuncia y Generar Comprobante
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- PESTAÑA 3: LEGAL Y EXPEDIENTES -->
+    <section id="tab-legal" class="tab-section hidden space-y-6">
+      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/40 border border-slate-800 rounded-3xl p-5 sm:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="max-w-2xl">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 mb-2">
+            <i data-lucide="scale" class="w-3.5 h-3.5"></i> EXIGIBILIDAD JURÍDICA Y JUSTICIA TRIBUTARIA
+          </span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white">Expedientes Colectivos y Protocolo Legal</h2>
+          <p class="text-xs sm:text-sm text-slate-300 mt-1.5 leading-relaxed">
+            Transformamos los reportes georreferenciados de los vecinos en prueba documental formal para exigir contraprestación efectiva de tasas cobradas ante la <strong class="text-white">Municipalidad de Puerto Iguazú, EMSA, IMAS, EPRAC Misiones y Defensa del Consumidor</strong> (Arts. 42 y 43 CN, Ley 24.240 y Convenio 169 OIT).
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2.5 shrink-0">
+          <button onclick="printDossier()" class="px-4 py-3 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition-all">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            Imprimir / Guardar PDF Oficial
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono font-bold text-amber-400">INSTANCIA 01</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300">Plazo: 10 días hábiles</span>
+          </div>
+          <h3 class="text-sm font-bold text-white">Reclamo Administrativo Unificado</h3>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">Presentación por Mesa de Entradas Municipal, IMAS y EMSA con coordenadas GPS, fotos y padrón de familias afectadas.</p>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono font-bold text-cyan-400">INSTANCIA 02</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-300">EPRAC & Ley 24.240</span>
+          </div>
+          <h3 class="text-sm font-bold text-white">Pronto Despacho y Ente Regulador</h3>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">Ante silencio administrativo: denuncia formal en EPRAC Misiones y Defensa del Consumidor exigiendo refacturación por servicio no prestado.</p>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono font-bold text-rose-400">INSTANCIA 03</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300">Art. 43 Const. Nacional</span>
+          </div>
+          <h3 class="text-sm font-bold text-white">Amparo Colectivo y Cautelar</h3>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">Medida cautelar innovativa por riesgo sanitario o inseguridad crítica en corredores escolares y comunidades Mbya Guaraní.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div class="lg:col-span-5 space-y-3">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300">Expedientes Activos por Barrio</h3>
+          <div id="legalBarriosList" class="space-y-3"></div>
+        </div>
+
+        <div class="lg:col-span-7">
+          <div id="dossierPrintArea" class="bg-slate-950 border border-slate-700 rounded-2xl p-5 sm:p-7 shadow-xl space-y-4">
+            <div class="flex items-start justify-between border-b border-slate-800 pb-4 gap-3">
+              <div>
+                <p class="text-[10px] font-mono uppercase tracking-widest text-cyan-400">ACTA COLECTIVA DE CONSTATACIÓN CIUDADANA • N° EXP-IGZ-2026-089</p>
+                <h3 class="text-base sm:text-lg font-extrabold text-white mt-1">DOSSIER PROBATORIO DE DEFICIENCIA DE SERVICIOS PÚBLICOS</h3>
+                <p class="text-xs text-slate-400">Destinatarios: Departamento Ejecutivo Municipal de Puerto Iguazú / IMAS / EMSA / EPRAC Misiones</p>
+              </div>
+              <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 font-mono text-xs text-slate-300 shrink-0" id="dossierDate">
+                Nov 2026
+              </span>
+            </div>
+
+            <div class="text-xs text-slate-300 space-y-2 leading-relaxed">
+              <p>
+                <strong>OBJETO:</strong> Por medio de la presente, los vecinos autoconvocados y el <em>Comité Comunitario de Agua y Luz de Puerto Iguazú</em> elevan el registro técnico georreferenciado de fallas críticas en el alumbrado público y el suministro de agua potable, intimando a la regularización inmediata en cumplimiento del <strong>Artículo 42 de la Constitución Nacional</strong>, la <strong>Ley Nacional N.° 24.240</strong> (prohibición de cobro de tasas/tarifas sin contraprestación efectiva) y el <strong>Convenio 169 de la OIT</strong>.
+              </p>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-800">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-900 text-slate-300 border-b border-slate-800">
+                  <tr>
+                    <th class="p-2.5">Barrio / Zona</th>
+                    <th class="p-2.5">Fallas Reg.</th>
+                    <th class="p-2.5">Familias</th>
+                    <th class="p-2.5">Estado Legal</th>
+                  </tr>
+                </thead>
+                <tbody id="dossierTableBody" class="divide-y divide-slate-800/80 text-slate-200"></tbody>
+              </table>
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+              <span>Validación criptográfica de coordenadas GPS y marca temporal PWA.</span>
+              <button onclick="copyDossierText()" class="no-print inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold transition-all">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                Copiar Texto del Acta
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PESTAÑA 4: INVERSORES ESG & QR -->
+    <section id="tab-inversores" class="tab-section hidden space-y-6">
+      <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 rounded-3xl p-5 sm:p-8">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 mb-2">
+              <i data-lucide="award" class="w-3.5 h-3.5"></i> MESA DE INVERSORES • IMPACTO AUDITADO ESG
+            </span>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-white">Trazabilidad en Tiempo Real & Arquitectura Modular</h2>
+            <p class="text-xs sm:text-sm text-slate-300 mt-1.5 max-w-3xl leading-relaxed">
+              Cada dólar invertido se vincula a un activo físico georreferenciado con placa QR pública. Inversión Etapa Piloto: <strong class="text-emerald-300">$23.000 USD</strong> (50 luminarias LED/solares, 2 Módulos Hídricos escalables en Aldea Mbya Guaraní, App ciudadana y soporte legal).
+            </p>
+          </div>
+          <div class="bg-slate-950/90 border border-emerald-500/30 rounded-2xl p-4 shrink-0">
+            <p class="text-[11px] uppercase tracking-wider text-slate-400">Inversión Piloto Total</p>
+            <p class="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400">$23.000 <span class="text-xs text-slate-400">USD</span></p>
+            <p class="text-[11px] text-emerald-300/80 mt-0.5">100% Trazable vía QR y Telemetría</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between text-amber-400 mb-2">
+              <i data-lucide="alert-circle" class="w-5 h-5"></i>
+              <span class="text-[10px] font-mono uppercase bg-amber-500/10 px-2 py-0.5 rounded">Mapeo Vivo</span>
+            </div>
+            <p class="text-2xl sm:text-3xl font-extrabold text-white" id="kpi-criticos">0</p>
+            <p class="text-xs text-slate-400 mt-0.5">Puntos críticos reportados</p>
+          </div>
+
+          <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between text-emerald-400 mb-2">
+              <i data-lucide="sun" class="w-5 h-5"></i>
+              <span class="text-[10px] font-mono uppercase bg-emerald-500/10 px-2 py-0.5 rounded">Meta Piloto: 50</span>
+            </div>
+            <p class="text-2xl sm:text-3xl font-extrabold text-white" id="kpi-led">18 <span class="text-xs font-normal text-emerald-400">/ 50</span></p>
+            <p class="text-xs text-slate-400 mt-0.5">Luminarias LED/Solares activas</p>
+          </div>
+
+          <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between text-cyan-400 mb-2">
+              <i data-lucide="droplets" class="w-5 h-5"></i>
+              <span class="text-[10px] font-mono uppercase bg-cyan-500/10 px-2 py-0.5 rounded">Aldea Mbya</span>
+            </div>
+            <p class="text-2xl sm:text-3xl font-extrabold text-white">10.000 <span class="text-xs font-normal text-cyan-400">L</span></p>
+            <p class="text-xs text-slate-400 mt-0.5">Reserva en 2 Módulos (16 canillas)</p>
+          </div>
+
+          <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
+            <div class="flex items-center justify-between text-purple-400 mb-2">
+              <i data-lucide="file-check-2" class="w-5 h-5"></i>
+              <span class="text-[10px] font-mono uppercase bg-purple-500/10 px-2 py-0.5 rounded">Exigibilidad</span>
+            </div>
+            <p class="text-2xl sm:text-3xl font-extrabold text-white" id="kpi-expedientes">4</p>
+            <p class="text-xs text-slate-400 mt-0.5">Expedientes legales en curso</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0">
+              <i data-lucide="container" class="w-6 h-6 text-cyan-400"></i>
+            </div>
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-400">Ingeniería Escalable • Aldea Mbya Guaraní</span>
+              <h3 class="text-lg font-extrabold text-white">Módulo Hídrico Comunitario «Agua Viva»</h3>
+            </div>
+          </div>
+
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            Diseñado junto al <em>Mburuvicha</em> para eliminar las caminatas de acarreo manual y permitir la extensión progresiva de cañerías hacia cada vivienda sin rehacer la obra central:
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+              <p class="font-bold text-cyan-300 mb-1">1. Almacenamiento Elevado</p>
+              <p class="text-slate-400">Torre galvanizada de 2,8m con 2 tanques tricapa UV de 2.500 L c/u (5.000 L de reserva por gravedad).</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+              <p class="font-bold text-emerald-300 mb-1">2. Filtrado y Cloración</p>
+              <p class="text-slate-400">Filtro de sedimentos lavable para turbidez de tierra colorada + dosificador de cloro seguro.</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+              <p class="font-bold text-amber-300 mb-1">3. Isla de 8 Canillas Antiderroche</p>
+              <p class="text-slate-400">Grifos de polipropileno industrial (sin valor de reventa por robo) a menos de 40m de los hogares.</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+              <p class="font-bold text-purple-300 mb-1">4. Colector PEAD Domiciliario</p>
+              <p class="text-slate-400">Manifold con 10 válvulas esféricas listas para extender mangueras enterradas de 1/2" casa por casa.</p>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">Paquetes de Patrocinio Corporativo (ESG)</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <p class="font-bold text-amber-300">Corredor Seguro</p>
+                <p class="font-mono font-extrabold text-white text-sm mt-0.5">$2.500 USD</p>
+                <p class="text-[10px] text-slate-400">15 Luminarias LED + QR</p>
+              </div>
+              <div class="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
+                <p class="font-bold text-cyan-300">Módulo Agua Viva</p>
+                <p class="font-mono font-extrabold text-white text-sm mt-0.5">$3.500 USD</p>
+                <p class="text-[10px] text-slate-400">1 Módulo 5.000L + Red</p>
+              </div>
+              <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                <p class="font-bold text-emerald-300">Civic Tech Partner</p>
+                <p class="font-mono font-extrabold text-white text-sm mt-0.5">$2.200 USD</p>
+                <p class="text-[10px] text-slate-400">App + Auditoría 12 meses</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Auditoría Ciudadana & Corporativa</span>
+                <h3 class="text-lg font-extrabold text-white">Simulador de Trazabilidad por Código QR</h3>
+              </div>
+              <i data-lucide="qr-code" class="w-7 h-7 text-emerald-400"></i>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">
+              Seleccioná una obra instalada en Puerto Iguazú para visualizar la ficha pública que se abre al escanear el código QR colocado en el poste o tanque:
+            </p>
+
+            <div id="qrAssetsSelector" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4"></div>
+          </div>
+
+          <div id="qrCertificateCard" class="bg-slate-950 border border-emerald-500/40 rounded-2xl p-4 sm:p-5 shadow-inner"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- NAVEGACIÓN MÓVIL INFERIOR                                             -->
+  <!-- ===================================================================== -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 px-2 py-1.5">
+    <div class="grid grid-cols-4 gap-1">
+      <button onclick="switchTab('mapa')" id="nav-mob-mapa" class="nav-mob-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-amber-400 bg-slate-800/80">
+        <i data-lucide="map-pin" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold mt-0.5">Mapa</span>
+      </button>
+      <button onclick="switchTab('reportar')" id="nav-mob-reportar" class="nav-mob-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-0.5">Reportar</span>
+      </button>
+      <button onclick="switchTab('legal')" id="nav-mob-legal" class="nav-mob-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+        <i data-lucide="scale" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-0.5">Legal</span>
+      </button>
+      <button onclick="switchTab('inversores')" id="nav-mob-inversores" class="nav-mob-btn flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400">
+        <i data-lucide="shield-check" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-0.5">ESG / QR</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MODAL COMPROBANTE -->
+  <div id="receiptModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto">
+        <i data-lucide="check-circle-2" class="w-7 h-7 text-emerald-400"></i>
+      </div>
+      <div class="text-center">
+        <h3 class="text-lg font-extrabold text-white">¡Reporte Georreferenciado con Éxito!</h3>
+        <p class="text-xs text-slate-400 mt-1">El punto ya figura en el Semáforo Territorial y fue incorporado al Dossier Legal Colectivo.</p>
+      </div>
+
+      <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2 text-xs">
+        <div class="flex justify-between">
+          <span class="text-slate-400">Comprobante Ciudadano:</span>
+          <span id="modalTicketId" class="font-mono font-bold text-amber-400">IGZ-2026-000</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Barrio / Zona:</span>
+          <span id="modalBarrio" class="font-semibold text-white text-right">Barrio Santa Rosa</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Categoría:</span>
+          <span id="modalTipo" class="font-semibold text-cyan-300 text-right">Sin Luz</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Coordenadas GPS:</span>
+          <span id="modalCoords" class="font-mono text-slate-300">-25.6052, -54.5681</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5 pt-1">
+        <button onclick="closeReceiptModalAndViewMap()" class="py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all">
+          Ver Pin en el Mapa
+        </button>
+        <button onclick="closeReceiptModal()" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition-all">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastBanner" class="hidden fixed top-20 right-4 z-50 bg-slate-900 border border-emerald-500/40 text-white px-4 py-3 rounded-2xl shadow-2xl text-xs font-semibold flex items-center gap-2">
+    <i data-lucide="check" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toastMessage">Acción completada</span>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT LOGIC                                                      -->
+  <!-- ===================================================================== -->
+  <script>
+    const IGUAZU_CENTER = [-25.6035, -54.5715];
+    const STORAGE_KEY = 'luz_y_agua_iguazu_reports_v1';
+
+    const INITIAL_REPORTS = [
+      {
+        id: 'IGZ-2026-101',
+        category: 'luz',
+        subType: 'Sin Luz / Luminaria Apagada',
+        barrio: 'Barrio Santa Rosa',
+        lat: -25.6085,
+        lng: -54.5642,
+        description: 'Corredor de parada de colectivo totalmente a oscuras hace 3 semanas. Riesgo para trabajadores nocturnos.',
+        affected: 45,
+        date: '15/11/2026 21:15',
+        legalStatus: 'Instancia 2: Pronto Despacho / EMSA',
+        sponsor: null,
+        amountUSD: null,
+        photo: ''
+      },
+      {
+        id: 'IGZ-2026-102',
+        category: 'agua',
+        subType: 'Corte de Agua / Baja Presión',
+        barrio: 'Barrio Belén',
+        lat: -25.6162,
+        lng: -54.5598,
+        description: 'Sin presión de red durante 48 horas seguidas en zona alta. Tanques domiciliarios vacíos.',
+        affected: 62,
+        date: '16/11/2026 14:30',
+        legalStatus: 'Instancia 2: Denuncia EPRAC Misiones',
+        sponsor: null,
+        amountUSD: null,
+        photo: ''
+      },
+      {
+        id: 'IGZ-2026-103',
+        category: 'solucionado',
+        subType: 'Módulo Hídrico Activo (5.000 L + 8 Canillas)',
+        barrio: 'Aldea Mbya Guaraní (Fortín Mbororé / Yryapú)',
+        lat: -25.6120,
+        lng: -54.5495,
+        description: 'Módulo Agua Viva #01 operativo con 2 tanques de 2.500L, filtrado de turbidez, 8 canillas de proximidad y colector PEAD para 12 viviendas.',
+        affected: 85,
+        date: '10/11/2026 10:00',
+        legalStatus: 'Obra ESG Validada • Convenio Comunitario',
+        sponsor: 'Consorcio Hotelero Iguazú Verde (ESG)',
+        amountUSD: 3500,
+        qrCodeId: 'QR-IGZ-MOD-01',
+        photo: ''
+      },
+      {
+        id: 'IGZ-2026-104',
+        category: 'luz',
+        subType: 'Sin Luz / Luminaria Apagada',
+        barrio: 'Barrio 25 de Mayo',
+        lat: -25.6042,
+        lng: -54.5785,
+        description: 'Cuatro columnas consecutivas sin funcionamiento en sendero escolar y cruce de arroyo.',
+        affected: 38,
+        date: '16/11/2026 20:40',
+        legalStatus: 'Instancia 1: Reclamo Administrativo',
+        sponsor: null,
+        amountUSD: null,
+        photo: ''
+      },
+      {
+        id: 'IGZ-2026-105',
+        category: 'solucionado',
+        subType: 'Luminarias LED Solares All-in-One (150W)',
+        barrio: 'Barrio Libertad',
+        lat: -25.5978,
+        lng: -54.5665,
+        description: 'Corredor Seguro instalado: 8 luminarias LED solares autónomas con batería LiFePO4 y protección IP66 en acceso principal.',
+        affected: 110,
+        date: '12/11/2026 19:20',
+        legalStatus: 'Obra ESG Validada • Placa QR Activa',
+        sponsor: 'Fundación Turismo Sustentable Misiones',
+        amountUSD: 2500,
+        qrCodeId: 'QR-IGZ-LED-08',
+        photo: ''
+      },
+      {
+        id: 'IGZ-2026-106',
+        category: 'agua',
+        subType: 'Agua Turbia / Pérdida en Calle',
+        barrio: 'Barrio Las Orquídeas',
+        lat: -25.6195,
+        lng: -54.5690,
+        description: 'Agua con alta turbidez colorada no apta para consumo directo y pérdida en caño maestro sin reparar.',
+        affected: 50,
+        date: '17/11/2026 09:15',
+        legalStatus: 'Instancia 1: Expediente IMAS N° 4412',
+        sponsor: null,
+        amountUSD: null,
+        photo: ''
+      },
+      {
+        id: 'IGZ-2026-107',
+        category: 'solucionado',
+        subType: 'Módulo Hídrico #02 + Extensión Domiciliaria',
+        barrio: 'Aldea Mbya Guaraní (Fortín Mbororé / Yryapú)',
+        lat: -25.6025,
+        lng: -54.5440,
+        description: 'Segundo módulo de 5.000L instalado junto al sector norte de la aldea con 300m de cañería PEAD enterrada hacia 10 hogares.',
+        affected: 70,
+        date: '14/11/2026 16:00',
+        legalStatus: 'Obra ESG Validada • Placa QR Activa',
+        sponsor: 'Aliados Triple Frontera Impacto',
+        amountUSD: 3500,
+        qrCodeId: 'QR-IGZ-MOD-02',
+        photo: ''
+      }
+    ];
+
+    let reports = [];
+    let map = null;
+    let markersLayer = null;
+    let currentFilter = 'todos';
+    let lastCreatedReport = null;
+    let selectedQrAssetId = 'IGZ-2026-103';
+    let uploadedPhotoDataUrl = '';
+
+    function loadReports() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            reports = parsed;
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudo leer localStorage, usando datos por defecto.', e);
+      }
+      reports = [...INITIAL_REPORTS];
+      saveReports();
+    }
+
+    function saveReports() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+      } catch (e) {
+        console.warn('No se pudo guardar en localStorage.', e);
+      }
+    }
+
+    function initMap() {
+      if (map) return; // Evitar doble inicialización
+
+      const mapEl = document.getElementById('map');
+      if (!mapEl) return;
+
+      if (typeof L === 'undefined') {
+        mapEl.innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94A3B8;font-size:13px;">No se pudo cargar la librería del mapa (Leaflet). Revisá tu conexión y recargá la página.</div>';
+        return;
+      }
+
+      map = L.map('map', {
+        center: IGUAZU_CENTER,
+        zoom: 14,
+        zoomControl: true
+      });
+
+      const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO | Luz y Agua Iguazú',
+        subdomains: 'abcd',
+        maxZoom: 19
+      });
+
+      const osmFallback = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors | Luz y Agua Iguazú',
+        maxZoom: 19
+      });
+
+      // Si el mapa oscuro falla repetidamente, pasamos a OpenStreetMap
+      let tileErrors = 0;
+      cartoDark.on('tileerror', () => {
+        tileErrors++;
+        if (tileErrors === 4 && map.hasLayer(cartoDark)) {
+          map.removeLayer(cartoDark);
+          osmFallback.addTo(map);
+        }
+      });
+      cartoDark.addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+      renderMarkers();
+
+      // Recalcular tamaño cuando el contenedor cambia o termina de cargar la página
+      map.invalidateSize();
+      setTimeout(() => map && map.invalidateSize(), 250);
+      window.addEventListener('load', () => map && map.invalidateSize());
+      window.addEventListener('resize', () => map && map.invalidateSize());
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => map && map.invalidateSize()).observe(mapEl);
+      }
+    }
+
+    let userLocationMarker = null;
+
+    function resetMapCenter() {
+      if (!map) return;
+      map.flyTo(IGUAZU_CENTER, 14, { duration: 0.8 });
+
+      // Además, si la persona permite la ubicación, mostramos dónde está
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const here = [pos.coords.latitude, pos.coords.longitude];
+            if (userLocationMarker) map.removeLayer(userLocationMarker);
+            userLocationMarker = L.circleMarker(here, {
+              radius: 8, color: '#ffffff', weight: 2, fillColor: '#3B82F6', fillOpacity: 1
+            }).addTo(map).bindPopup('Estás acá');
+            map.flyTo(here, 16, { duration: 0.8 });
+          },
+          () => showToast('No se pudo obtener tu ubicación. Mostrando Puerto Iguazú.'),
+          { timeout: 8000, enableHighAccuracy: true }
+        );
+      }
+    }
+
+    function createCustomMarkerIcon(category) {
+      let colorHex = '#F59E0B';
+      let pulseClass = 'marker-pulse';
+      let svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#060A13" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`;
+
+      if (category === 'agua') {
+        colorHex = '#06B6D4';
+        svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#060A13" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`;
+      } else if (category === 'solucionado') {
+        colorHex = '#10B981';
+        pulseClass = '';
+        svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#060A13" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      }
+
+      const html = `
+        <div style="position:relative; width:32px; height:32px; display:flex; align-items:center; justify-content:center;">
+          ${pulseClass ? `<span class="${pulseClass}" style="position:absolute; width:32px; height:32px; border-radius:9999px; background:${colorHex};"></span>` : ''}
+          <div style="position:relative; width:28px; height:28px; border-radius:9999px; background:${colorHex}; border:2px solid #060A13; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.6);">
+            ${svgIcon}
+          </div>
+        </div>
+      `;
+
+      return L.divIcon({
+        html,
+        className: 'custom-leaflet-pin',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -14]
+      });
+    }
+
+    function renderMarkers() {
+      if (!markersLayer) return;
+      markersLayer.clearLayers();
+
+      const filtered = currentFilter === 'todos'
+        ? reports
+        : reports.filter(r => r.category === currentFilter);
+
+      filtered.forEach(item => {
+        const badgeColor = item.category === 'luz'
+          ? 'background:rgba(245,158,11,0.18); color:#FCD34D; border:1px solid rgba(245,158,11,0.4);'
+          : item.category === 'agua'
+          ? 'background:rgba(6,182,212,0.18); color:#67E8F9; border:1px solid rgba(6,182,212,0.4);'
+          : 'background:rgba(16,185,129,0.18); color:#6EE7B7; border:1px solid rgba(16,185,129,0.4);';
+
+        const photoBlock = item.photo
+          ? `<img src="${item.photo}" alt="Evidencia" style="width:100%; height:110px; object-fit:cover; border-radius:8px; margin-top:8px; border:1px solid rgba(148,163,184,0.2);" />`
+          : '';
+
+        const sponsorBlock = item.sponsor
+          ? `<div style="margin-top:8px; padding:6px 8px; border-radius:8px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); font-size:11px;">
+               <strong style="color:#6EE7B7;">Patrocinador ESG:</strong> ${item.sponsor}<br/>
+               <span style="color:#94A3B8;">Código Trazabilidad:</span> <code style="color:#fff;">${item.qrCodeId || 'QR-IGZ-ACTIVO'}</code>
+             </div>`
+          : '';
+
+        const popupHtml = `
+          <div style="padding:14px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px;">
+              <span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; ${badgeColor}">
+                ${item.subType}
+              </span>
+              <span style="font-family:monospace; font-size:10px; color:#94A3B8;">${item.id}</span>
+            </div>
+            <h4 style="font-size:13px; font-weight:800; color:#F8FAFC; margin:0 0 4px 0;">${item.barrio}</h4>
+            <p style="font-size:11px; color:#CBD5E1; line-height:1.4; margin:0;">${item.description}</p>
+            ${photoBlock}
+            ${sponsorBlock}
+            <div style="margin-top:10px; padding-top:8px; border-top:1px solid rgba(148,163,184,0.15); display:flex; justify-content:space-between; font-size:10px; color:#94A3B8;">
+              <span>👥 ~${item.affected} familias</span>
+              <span>📅 ${item.date}</span>
+            </div>
+            <div style="margin-top:4px; font-size:10px; color:#38BDF8; font-weight:600;">
+              ⚖️ ${item.legalStatus}
+            </div>
+          </div>
+        `;
+
+        const marker = L.marker([item.lat, item.lng], {
+          icon: createCustomMarkerIcon(item.category)
+        }).bindPopup(popupHtml);
+
+        marker.addTo(markersLayer);
+      });
+    }
+
+    function filterMarkers(filterType) {
+      currentFilter = filterType;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'text-slate-950');
+        btn.classList.add('bg-slate-800');
+      });
+      const activeBtn = document.getElementById(`filter-${filterType}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-slate-800');
+        activeBtn.classList.add('bg-white', 'text-slate-950');
+      }
+      renderMarkers();
+      renderFeedList();
+    }
+
+    function renderFeedList() {
+      const container = document.getElementById('reportsFeedList');
+      if (!container) return;
+
+      const filtered = currentFilter === 'todos'
+        ? reports
+        : reports.filter(r => r.category === currentFilter);
+
+      container.innerHTML = filtered.map(item => {
+        const dotClass = item.category === 'luz'
+          ? 'bg-amber-400'
+          : item.category === 'agua'
+          ? 'bg-cyan-400'
+          : 'bg-emerald-400';
+
+        const tagClass = item.category === 'luz'
+          ? 'text-amber-300 bg-amber-500/10 border-amber-500/30'
+          : item.category === 'agua'
+          ? 'text-cyan-300 bg-cyan-500/10 border-cyan-500/30'
+          : 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30';
+
+        return `
+          <div onclick="focusReportOnMap('${item.id}')" class="cursor-pointer p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800/90 border border-slate-800/90 transition-all group">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${tagClass}">
+                <span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span>
+                ${item.category === 'solucionado' ? 'Obra ESG Activa' : item.subType.split('/')[0]}
+              </span>
+              <span class="font-mono text-[10px] text-slate-500">${item.id}</span>
+            </div>
+            <p class="text-xs font-bold text-white group-hover:text-amber-300 transition-colors">${item.barrio}</p>
+            <p class="text-[11px] text-slate-400 line-clamp-2 mt-0.5">${item.description}</p>
+            <div class="flex items-center justify-between text-[10px] text-slate-500 mt-2 pt-1.5 border-t border-slate-800/60">
+              <span>${item.affected} familias</span>
+              <span class="text-cyan-400/90 truncate max-w-[165px]">${item.legalStatus}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function focusReportOnMap(reportId) {
+      const target = reports.find(r => r.id === reportId);
+      if (!target) return;
+
+      switchTab('mapa');
+      setTimeout(() => {
+        if (map) {
+          map.flyTo([target.lat, target.lng], 16, { duration: 0.7 });
+          markersLayer.eachLayer(layer => {
+            const ll = layer.getLatLng();
+            if (Math.abs(ll.lat - target.lat) < 0.0001 && Math.abs(ll.lng - target.lng) < 0.0001) {
+              layer.openPopup();
+            }
+          });
+        }
+      }, 200);
+    }
+
+    function selectProblemType(category, subType) {
+      document.getElementById('selectedCategory').value = category;
+      document.getElementById('selectedSubType').value = subType;
+
+      document.querySelectorAll('.type-select-btn').forEach(btn => {
+        btn.classList.remove('border-amber-500', 'bg-amber-500/15', 'border-cyan-500', 'bg-cyan-500/15');
+        btn.classList.add('border-slate-800', 'bg-slate-950/60');
+      });
+
+      if (subType.includes('Luz')) {
+        const b = document.getElementById('btn-type-luz');
+        b.classList.remove('border-slate-800', 'bg-slate-950/60');
+        b.classList.add('border-amber-500', 'bg-amber-500/15');
+      } else if (subType.includes('Corte')) {
+        const b = document.getElementById('btn-type-agua-corte');
+        b.classList.remove('border-slate-800', 'bg-slate-950/60');
+        b.classList.add('border-cyan-500', 'bg-cyan-500/15');
+      } else {
+        const b = document.getElementById('btn-type-agua-turbia');
+        b.classList.remove('border-slate-800', 'bg-slate-950/60');
+        b.classList.add('border-cyan-500', 'bg-cyan-500/15');
+      }
+    }
+
+    function getUserGPS() {
+      const btnText = document.getElementById('gpsBtnText');
+      const coordsDisplay = document.getElementById('coordsDisplay');
+      btnText.textContent = 'Obteniendo GPS...';
+
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toFixed(5);
+            const lng = pos.coords.longitude.toFixed(5);
+            document.getElementById('latInput').value = lat;
+            document.getElementById('lngInput').value = lng;
+            coordsDisplay.textContent = `${lat}, ${lng} (GPS Verificado)`;
+            btnText.textContent = 'Ubicación GPS Capturada';
+            showToast('Coordenadas GPS reales capturadas');
+          },
+          () => {
+            const jitterLat = (-25.6065 + (Math.random() - 0.5) * 0.012).toFixed(5);
+            const jitterLng = (-54.5675 + (Math.random() - 0.5) * 0.012).toFixed(5);
+            document.getElementById('latInput').value = jitterLat;
+            document.getElementById('lngInput').value = jitterLng;
+            coordsDisplay.textContent = `${jitterLat}, ${jitterLng} (Zona Puerto Iguazú)`;
+            btnText.textContent = 'Ubicación Asignada (Iguazú)';
+            showToast('Coordenadas de Puerto Iguazú asignadas');
+          },
+          { timeout: 5000 }
+        );
+      } else {
+        btnText.textContent = 'Ubicación Asignada (Iguazú)';
+      }
+    }
+
+    function previewReportPhoto(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        uploadedPhotoDataUrl = e.target.result;
+        document.getElementById('photoPreviewImg').src = uploadedPhotoDataUrl;
+        document.getElementById('photoPreviewContainer').classList.remove('hidden');
+        document.getElementById('photoPlaceholderBox').classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearPhotoPreview() {
+      uploadedPhotoDataUrl = '';
+      document.getElementById('photoPreviewImg').src = '';
+      document.getElementById('photoPreviewContainer').classList.add('hidden');
+      document.getElementById('photoPlaceholderBox').classList.remove('hidden');
+    }
+
+    function submitCitizenReport(event) {
+      event.preventDefault();
+
+      const category = document.getElementById('selectedCategory').value;
+      const subType = document.getElementById('selectedSubType').value;
+      const barrio = document.getElementById('barrioSelect').value;
+      const lat = parseFloat(document.getElementById('latInput').value) || (-25.6052 + (Math.random() - 0.5) * 0.01);
+      const lng = parseFloat(document.getElementById('lngInput').value) || (-54.5681 + (Math.random() - 0.5) * 0.01);
+      const description = document.getElementById('descInput').value.trim();
+      const affected = parseInt(document.getElementById('affectedInput').value, 10) || 20;
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+        ' ' + now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+
+      const newTicketId = `IGZ-2026-${108 + reports.length}`;
+      const newReport = {
+        id: newTicketId,
+        category,
+        subType,
+        barrio,
+        lat,
+        lng,
+        description,
+        affected,
+        date: dateStr,
+        legalStatus: 'Instancia 1: Incorporado a Acta Colectiva',
+        sponsor: null,
+        amountUSD: null,
+        photo: uploadedPhotoDataUrl
+      };
+
+      reports.unshift(newReport);
+      saveReports();
+      lastCreatedReport = newReport;
+
+      updateAllMetricsAndViews();
+
+      document.getElementById('modalTicketId').textContent = newReport.id;
+      document.getElementById('modalBarrio').textContent = newReport.barrio;
+      document.getElementById('modalTipo').textContent = newReport.subType;
+      document.getElementById('modalCoords').textContent = `${newReport.lat.toFixed(4)}, ${newReport.lng.toFixed(4)}`;
+      document.getElementById('receiptModal').classList.remove('hidden');
+
+      document.getElementById('descInput').value = '';
+      clearPhotoPreview();
+    }
+
+    function closeReceiptModal() {
+      document.getElementById('receiptModal').classList.add('hidden');
+    }
+
+    function closeReceiptModalAndViewMap() {
+      closeReceiptModal();
+      switchTab('mapa');
+      filterMarkers('todos');
+      if (lastCreatedReport) {
+        setTimeout(() => focusReportOnMap(lastCreatedReport.id), 300);
+      }
+    }
+
+    function renderLegalSection() {
+      const grouped = {};
+      reports.filter(r => r.category !== 'solucionado').forEach(r => {
+        if (!grouped[r.barrio]) {
+          grouped[r.barrio] = {
+            barrio: r.barrio,
+            count: 0,
+            families: 0,
+            types: new Set(),
+            status: r.legalStatus
+          };
+        }
+        grouped[r.barrio].count += 1;
+        grouped[r.barrio].families += r.affected;
+        grouped[r.barrio].types.add(r.category === 'luz' ? 'Alumbrado' : 'Agua Potable');
+      });
+
+      const listContainer = document.getElementById('legalBarriosList');
+      const tableBody = document.getElementById('dossierTableBody');
+      if (!listContainer || !tableBody) return;
+
+      const barriosArr = Object.values(grouped);
+
+      listContainer.innerHTML = barriosArr.map(b => `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-sm font-bold text-white">${b.barrio}</h4>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+              ${b.count} ${b.count === 1 ? 'falla' : 'fallas'}
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">Rubros: <strong class="text-slate-200">${Array.from(b.types).join(' + ')}</strong> • ~${b.families} familias</p>
+          <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+            <span class="text-cyan-400 font-semibold">${b.status}</span>
+            <span class="font-mono text-slate-500">Art. 42 CN</span>
+          </div>
+        </div>
+      `).join('');
+
+      tableBody.innerHTML = barriosArr.map(b => `
+        <tr>
+          <td class="p-2.5 font-semibold">${b.barrio}</td>
+          <td class="p-2.5">${b.count} (${Array.from(b.types).join(', ')})</td>
+          <td class="p-2.5 font-mono">~${b.families}</td>
+          <td class="p-2.5 text-cyan-300">${b.status}</td>
+        </tr>
+      `).join('');
+    }
+
+    function printDossier() {
+      window.print();
+    }
+
+    function copyDossierText() {
+      const activeComplaints = reports.filter(r => r.category !== 'solucionado');
+      const lines = [
+        'ACTA COLECTIVA DE CONSTATACIÓN CIUDADANA - LUZ Y AGUA IGUAZÚ',
+        'Destinatarios: Municipalidad de Puerto Iguazú / IMAS / EMSA / EPRAC Misiones',
+        'Marco Legal: Arts. 42 y 43 Constitución Nacional, Ley 24.240, Convenio 169 OIT.',
+        '----------------------------------------------------------------------',
+        ...activeComplaints.map(r => `[${r.id}] ${r.barrio} | ${r.subType} | GPS: ${r.lat}, ${r.lng} | ${r.description} (~${r.affected} familias)`),
+        '----------------------------------------------------------------------',
+        'Generado por Plataforma Cívica Luz y Agua para Todos - Puerto Iguazú, Misiones.'
+      ].join('\n');
+
+      const tempArea = document.createElement('textarea');
+      tempArea.value = lines;
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      try {
+        document.execCommand('copy');
+        showToast('Acta legal copiada al portapapeles');
+      } catch (e) {
+        showToast('No se pudo copiar automáticamente');
+      }
+      document.body.removeChild(tempArea);
+    }
+
+    function renderInvestorsQrSection() {
+      const esgAssets = reports.filter(r => r.category === 'solucionado');
+      const selectorContainer = document.getElementById('qrAssetsSelector');
+      const certCard = document.getElementById('qrCertificateCard');
+      if (!selectorContainer || !certCard || esgAssets.length === 0) return;
+
+      selectorContainer.innerHTML = esgAssets.map(asset => {
+        const isSelected = asset.id === selectedQrAssetId;
+        const borderClass = isSelected
+          ? 'border-emerald-400 bg-emerald-500/15 text-white'
+          : 'border-slate-800 bg-slate-950/70 text-slate-300 hover:border-slate-700';
+
+        return `
+          <button type="button" onclick="selectQrAsset('${asset.id}')" class="p-3 rounded-2xl border text-left transition-all ${borderClass}">
+            <div class="flex items-center justify-between text-[10px] font-mono mb-1">
+              <span class="text-emerald-400 font-bold">${asset.qrCodeId || 'QR-IGZ'}</span>
+              <span>$${asset.amountUSD || 2500} USD</span>
+            </div>
+            <p class="text-xs font-bold truncate">${asset.barrio}</p>
+            <p class="text-[10px] text-slate-400 truncate mt-0.5">${asset.subType}</p>
+          </button>
+        `;
+      }).join('');
+
+      const active = esgAssets.find(a => a.id === selectedQrAssetId) || esgAssets[0];
+
+      const qrSvg = `
+        <svg viewBox="0 0 100 100" class="w-24 h-24 rounded-xl bg-white p-2 shrink-0">
+          <rect x="6" y="6" width="26" height="26" fill="none" stroke="#060A13" stroke-width="6"/>
+          <rect x="14" y="14" width="10" height="10" fill="#060A13"/>
+          <rect x="68" y="6" width="26" height="26" fill="none" stroke="#060A13" stroke-width="6"/>
+          <rect x="76" y="14" width="10" height="10" fill="#060A13"/>
+          <rect x="6" y="68" width="26" height="26" fill="none" stroke="#060A13" stroke-width="6"/>
+          <rect x="14" y="76" width="10" height="10" fill="#060A13"/>
+          <rect x="42" y="10" width="8" height="8" fill="#060A13"/>
+          <rect x="52" y="20" width="8" height="16" fill="#060A13"/>
+          <rect x="40" y="42" width="20" height="20" fill="#10B981"/>
+          <rect x="12" y="44" width="16" height="8" fill="#060A13"/>
+          <rect x="68" y="46" width="10" height="18" fill="#060A13"/>
+          <rect x="82" y="54" width="12" height="8" fill="#060A13"/>
+          <rect x="44" y="72" width="12" height="20" fill="#060A13"/>
+          <rect x="66" y="76" width="24" height="14" fill="#060A13"/>
+        </svg>
+      `;
+
+      certCard.innerHTML = `
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          ${qrSvg}
+          <div class="flex-1 space-y-1.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                ACTIVO OPERATIVO • TELEMETRÍA OK
+              </span>
+              <span class="font-mono text-xs text-slate-400">${active.qrCodeId || 'QR-IGZ-01'}</span>
+            </div>
+            <h4 class="text-sm sm:text-base font-extrabold text-white">${active.subType}</h4>
+            <p class="text-xs text-slate-300">${active.description}</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-4 pt-3.5 border-t border-slate-800 text-xs">
+          <div>
+            <p class="text-[10px] text-slate-400">Patrocinador ESG</p>
+            <p class="font-bold text-emerald-300 truncate">${active.sponsor}</p>
+          </div>
+          <div>
+            <p class="text-[10px] text-slate-400">Inversión Auditada</p>
+            <p class="font-mono font-extrabold text-white">$${active.amountUSD} USD</p>
+          </div>
+          <div class="col-span-2 sm:col-span-1">
+            <p class="text-[10px] text-slate-400">Ubicación & Beneficio</p>
+            <p class="font-semibold text-slate-200">${active.barrio} (~${active.affected} flias)</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function selectQrAsset(assetId) {
+      selectedQrAssetId = assetId;
+      renderInvestorsQrSection();
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
+      const targetSec = document.getElementById(`tab-${tabName}`);
+      if (targetSec) targetSec.classList.remove('hidden');
+
+      document.querySelectorAll('.nav-desk-btn').forEach(btn => {
+        btn.classList.remove('bg-slate-800', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-400');
+      });
+      const activeDesk = document.getElementById(`nav-desk-${tabName}`);
+      if (activeDesk) {
+        activeDesk.classList.remove('text-slate-400');
+        activeDesk.classList.add('bg-slate-800', 'text-white', 'shadow-sm');
+      }
+
+      document.querySelectorAll('.nav-mob-btn').forEach(btn => {
+        btn.classList.remove('text-amber-400', 'bg-slate-800/80');
+        btn.classList.add('text-slate-400');
+      });
+      const activeMob = document.getElementById(`nav-mob-${tabName}`);
+      if (activeMob) {
+        activeMob.classList.remove('text-slate-400');
+        activeMob.classList.add('text-amber-400', 'bg-slate-800/80');
+      }
+
+      if (tabName === 'mapa') {
+        if (!map) {
+          initMap();
+        } else {
+          setTimeout(() => {
+            map.invalidateSize();
+          }, 100);
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateAllMetricsAndViews() {
+      const total = reports.length;
+      const luzCount = reports.filter(r => r.category === 'luz').length;
+      const aguaCount = reports.filter(r => r.category === 'agua').length;
+      const solCount = reports.filter(r => r.category === 'solucionado').length;
+
+      document.getElementById('count-todos').textContent = total;
+      document.getElementById('count-luz').textContent = luzCount;
+      document.getElementById('count-agua').textContent = aguaCount;
+      document.getElementById('count-solucionado').textContent = solCount;
+
+      document.getElementById('kpi-criticos').textContent = luzCount + aguaCount;
+      document.getElementById('kpi-expedientes').textContent = luzCount + aguaCount;
+
+      renderMarkers();
+      renderFeedList();
+      renderLegalSection();
+      renderInvestorsQrSection();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastBanner');
+      document.getElementById('toastMessage').textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 3200);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadReports();
+      initMap();
+      updateAllMetricsAndViews();
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>
