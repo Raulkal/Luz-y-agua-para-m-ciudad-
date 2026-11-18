@@ -39,9 +39,10 @@
   <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>window.L || document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');</script>
 
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
 
   <style>
     body {
@@ -51,6 +52,12 @@
       overflow-x: hidden;
     }
     /* Estilos explícitos y garantizados para Leaflet */
+    /* Fix: el preflight de Tailwind (img{max-width:100%;height:auto}) desarma las teselas de Leaflet */
+    .leaflet-container img,
+    .leaflet-container svg { max-width: none !important; max-height: none !important; }
+    .leaflet-container .leaflet-tile { max-width: none !important; max-height: none !important; width: 256px; height: 256px; }
+    .leaflet-pane > svg, .leaflet-pane > canvas { max-width: none !important; }
+    .leaflet-container .leaflet-marker-pane img, .leaflet-container .leaflet-shadow-pane img { width: auto; height: auto; }
     #map {
       width: 100%;
       height: 520px !important;
@@ -225,6 +232,8 @@
               </div>
             </div>
           </div>
+
+          <a href="https://www.google.com/maps/search/?api=1&query=-25.6035,-54.5715" target="_blank" rel="noopener" title="Abrir Puerto Iguazú en Google Maps" class="absolute top-3 right-14 z-20 px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg transition-all text-[11px] font-semibold">Abrir en Google Maps</a>
 
           <button onclick="resetMapCenter()" title="Centrar en Puerto Iguazú" class="absolute top-3 right-3 z-20 p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 shadow-lg transition-all">
             <i data-lucide="crosshair" class="w-4 h-4"></i>
@@ -846,31 +855,121 @@
     function initMap() {
       if (map) return; // Evitar doble inicialización
 
-      setTimeout(() => {
-        const mapEl = document.getElementById('map');
-        if (!mapEl) return;
+      const mapEl = document.getElementById('map');
+      if (!mapEl) return;
 
-        map = L.map('map', {
-          center: IGUAZU_CENTER,
-          zoom: 14,
-          zoomControl: true
-        });
+      if (typeof L === 'undefined') {
+        mapEl.innerHTML = '<div style="height:100%;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94A3B8;font-size:13px;">No se pudo cargar la librería del mapa (Leaflet). Revisá tu conexión y recargá la página.</div>';
+        return;
+      }
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap &copy; CARTO | Luz y Agua Iguazú',
-          subdomains: 'abcd',
-          maxZoom: 19
-        }).addTo(map);
+      map = L.map('map', {
+        center: IGUAZU_CENTER,
+        zoom: 14,
+        zoomControl: true
+      });
 
-        markersLayer = L.layerGroup().addTo(map);
-        renderMarkers();
-        map.invalidateSize();
-      }, 150);
+      // Mapa v4 — proveedores gratuitos sin API key (CARTO ahora exige clave)
+      const MAP_VERSION = 'mapa v4';
+      const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+
+      // Base oscura de Esri (combina con el estilo de la plataforma) + nombres de calles
+      const esriDarkBase = L.tileLayer(ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri | Luz y Agua Iguazú | ' + MAP_VERSION,
+        maxNativeZoom: 16, maxZoom: 19
+      });
+      const esriDarkLabels = L.tileLayer(ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+        maxNativeZoom: 16, maxZoom: 19
+      });
+      const darkStreets = L.layerGroup([esriDarkBase, esriDarkLabels]);
+
+      const esriStreets = L.tileLayer(ESRI + 'World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri | Luz y Agua Iguazú | ' + MAP_VERSION,
+        maxZoom: 19
+      });
+
+      const esriSat = L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri, Maxar, Earthstar | Luz y Agua Iguazú | ' + MAP_VERSION,
+        maxZoom: 19
+      });
+
+      // Plano propio de Puerto Iguazú (exportado desde QField/QGIS, 19/10/2026).
+      // La imagen no trae georreferenciación: estos límites son una estimación.
+      // Si el plano se ve corrido respecto de las calles, ajustá solo estos 4 números
+      // (norte, sur, este, oeste) o pasame la extensión exacta del layout en QGIS.
+      const PLANO_BOUNDS = [[-25.6814, -54.6435], [-25.5942, -54.4829]]; // [[sur, oeste], [norte, este]]
+      const planoIguazu = L.imageOverlay('mapa-puerto-iguazu.jpg', PLANO_BOUNDS, {
+        opacity: 0.92,
+        interactive: false,
+        attribution: 'Plano &copy; OpenStreetMap contributors | QField'
+      });
+
+      // Selector de capas: siempre hay una alternativa a mano
+      L.control.layers({
+        'Oscuro': darkStreets,
+        'Calles (Esri)': esriStreets,
+        'Satélite': esriSat
+      }, { 'Plano de Puerto Iguazú (QField)': planoIguazu }, { position: 'topleft', collapsed: true }).addTo(map);
+
+      darkStreets.addTo(map);
+      planoIguazu.addTo(map);
+
+      // Si la capa actual no carga ninguna tesela en 6 segundos, pasamos a la siguiente
+      const fallbackChain = [
+        { layer: darkStreets, probe: esriDarkBase },
+        { layer: esriStreets, probe: esriStreets }
+      ];
+      function watchLayer(i) {
+        const step = fallbackChain[i];
+        if (!step || !map.hasLayer(step.layer)) return;
+        let loaded = 0, errors = 0, done = false;
+        const next = () => {
+          if (done) return;
+          done = true;
+          if (loaded > 0 || !fallbackChain[i + 1]) return;
+          map.removeLayer(step.layer);
+          fallbackChain[i + 1].layer.addTo(map);
+          watchLayer(i + 1);
+        };
+        step.probe.on('tileload', () => { loaded++; });
+        step.probe.on('tileerror', () => { errors++; if (errors >= 4 && loaded === 0) next(); });
+        setTimeout(next, 6000);
+      }
+      watchLayer(0);
+
+      markersLayer = L.layerGroup().addTo(map);
+      renderMarkers();
+
+      // Recalcular tamaño cuando el contenedor cambia o termina de cargar la página
+      map.invalidateSize();
+      setTimeout(() => map && map.invalidateSize(), 250);
+      window.addEventListener('load', () => map && map.invalidateSize());
+      window.addEventListener('resize', () => map && map.invalidateSize());
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => map && map.invalidateSize()).observe(mapEl);
+      }
     }
 
+    let userLocationMarker = null;
+
     function resetMapCenter() {
-      if (map) {
-        map.flyTo(IGUAZU_CENTER, 14, { duration: 0.8 });
+      if (!map) return;
+      map.flyTo(IGUAZU_CENTER, 14, { duration: 0.8 });
+
+      // Además, si la persona permite la ubicación, mostramos dónde está
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const here = [pos.coords.latitude, pos.coords.longitude];
+            if (userLocationMarker) map.removeLayer(userLocationMarker);
+            userLocationMarker = L.circleMarker(here, {
+              radius: 8, color: '#ffffff', weight: 2, fillColor: '#3B82F6', fillOpacity: 1
+            }).addTo(map).bindPopup('Estás acá');
+            map.flyTo(here, 16, { duration: 0.8 });
+          },
+          () => showToast('No se pudo obtener tu ubicación. Mostrando Puerto Iguazú.'),
+          { timeout: 8000, enableHighAccuracy: true }
+        );
       }
     }
 
